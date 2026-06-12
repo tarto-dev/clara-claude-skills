@@ -52,13 +52,15 @@ Mechanical, from the highest severity found:
 - Any **Blocker/Major** → **request-changes**.
 - Only **Minor/Nit**, or none → **approve** (note nits in the comment).
 
-Language/style remarks tagged **« à revoir »** are Minor *by policy*: each one opens a thread (which must be closed before merge can proceed), so it doesn't flip the verdict to request-changes on its own. Reserve request-changes for real Contenu/Sécurité/Standards defects.
+The real merge gate here is **all threads resolved**, not the approval — every finding you raise as a thread blocks merge until it's closed. So `request-changes` vs `approve` is mostly about whether *you* add an approval: withhold it on real Contenu/Sécurité/Standards defects; language/style remarks tagged **« à revoir »** are Minor and don't withhold approval on their own (their thread still has to be closed).
 
 Never recommend approve on anything you couldn't verify — say what's unverified and default to request-changes.
 
-## Draft the review note
+## Draft the review
 
-Build a single structured note, **in the MR's language** (French here), ready to post verbatim:
+Two outputs, both **in the MR's language** (French here):
+
+**1. The global note** — one synthesis comment: verdict, per-axis table, verification status, UAT checklist. No per-finding list here (each finding becomes its own thread).
 
 ```markdown
 ## Revue — <approve | demande de modifs>
@@ -71,35 +73,69 @@ Build a single structured note, **in the MR's language** (French here), ready to
 | Standards | … |
 | Tests | … |
 
-### Remarques
-- **[Blocker]** <symptôme> (`<fichier>:<ligne>`)
-  <pourquoi, et le correctif exact — copiable, jamais « investiguer X »>
-- **[à revoir]** Commentaire en français (`<fichier>:<ligne>`) — le code et les commentaires sont en anglais. Non bloquant, mais le thread doit être résolu avant merge.
-- **[Nit]** …
+Détail des points en threads ci-dessous (chaque thread = à résoudre avant merge).
 
 ### Vérifié
-- ✅ <check empirique qui a tourné>
-- ✅ phpcs / php -l / tests le cas échéant
+- ✅ <check empirique qui a tourné> / ⚠️ <ce qui n'a pas pu être vérifié>
+
+### UAT manuelle
+- [ ] <étape exacte>
 ```
 
-Show this note to the user. **Do not post it.** State the recommended verdict and what's unverified.
+**2. One thread per finding** — so each opens a resolvable discussion (the team gate is *all threads closed*, so every thread is effectively blocking-until-resolved). Each thread body:
 
-## Post & approve — only on explicit go-ahead
+```markdown
+**[Blocker|Major|Minor|Nit|à revoir]** <symptôme>
+<pourquoi, et le correctif exact — copiable, jamais « investiguer X »>
+```
 
-When (and only when) the user explicitly validates, act on the platform:
+Anchor the thread to a precise diff line whenever the finding maps to one; otherwise post it as a general thread (commit/branch/description-level findings). Keep threads to genuine findings — don't open a thread per micro-nit.
+
+Show both the note and the thread list to the user. **Post nothing yet.** State the recommended verdict and what's unverified.
+
+## Post — only on explicit go-ahead
+
+When (and only when) the user explicitly validates, post. Project path is URL-encoded (`gm%2Fjanneau`).
+
+**Global note:**
 
 ```bash
-# 1. post the review note
-GITLAB_HOST=<host> glab mr note <id> -R <group/project> -m "$NOTE"
-
-# 2a. approve  — only if the verdict is approve AND the user said so
-GITLAB_HOST=<host> glab mr approve <id> -R <group/project>
-
-# 2b. request-changes — post the note and leave it unapproved (GitLab has no "request changes" verb)
-GITLAB_HOST=<host> glab mr revoke  <id> -R <group/project>   # revoke a prior approval if one exists
+GITLAB_HOST=<host> glab mr note <id> -R <group/project> -m "$(cat note.md)"
 ```
 
-Confirm what you posted (note URL, approval state). Never merge, never mark Ready.
+**Per-topic threads** (resolvable discussions). Fetch the diff SHAs once:
+
+```bash
+GITLAB_HOST=<host> glab api "projects/<enc-path>/merge_requests/<id>" | jq .diff_refs
+# -> base_sha, start_sha, head_sha
+```
+
+*Inline thread* anchored to a line — build the JSON with `jq` (safe encoding), POST via `--input` with an explicit content-type (glab drops bracketed `position[...]` form fields, and doesn't set the header itself):
+
+```bash
+jq -n --arg body "$BODY" --arg base "$BASE" --arg head "$HEAD" --arg file "<path>" --argjson line <new_line> \
+  '{body:$body, position:{position_type:"text", base_sha:$base, start_sha:$base, head_sha:$head, new_path:$file, old_path:$file, new_line:$line}}' > /tmp/disc.json
+GITLAB_HOST=<host> glab api -X POST "projects/<enc-path>/merge_requests/<id>/discussions" \
+  -H "Content-Type: application/json" --input /tmp/disc.json
+```
+
+- `new_line` = line number on the **new** side (added or context lines). For a **removed** line, use `old_line` instead and omit `new_line`.
+- An invalid position → HTTP 400 "Note position is invalid". A *silently* position-less thread (`position: null` in the response) means the anchor was dropped — check `.notes[0].position.new_line` came back non-null.
+
+*General thread* (commit / branch / description findings — no line):
+
+```bash
+GITLAB_HOST=<host> glab api -X POST "projects/<enc-path>/merge_requests/<id>/discussions" -f "body=$BODY"
+```
+
+**Approve** — separate, explicit step, only if the verdict is approve *and* the user said so:
+
+```bash
+GITLAB_HOST=<host> glab mr approve <id> -R <group/project>
+# request-changes = post the threads, leave unapproved; glab mr revoke <id> -R <…> drops a prior approval
+```
+
+Confirm what you posted (note URL, thread count, anchored vs general, approval state). Never merge, never mark Ready.
 
 ## Non-goals
 
