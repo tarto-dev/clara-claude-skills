@@ -11,11 +11,27 @@ Review a focused code change and return a verdict the author can act on. Quality
 
 Determine what to review, in this order:
 
-1. An explicit diff, file, or branch the user named.
-2. Otherwise the current branch vs its base (`git diff <base>...HEAD`, base usually `develop` or `main`).
-3. Otherwise the working-tree diff (`git diff` / `git diff --cached`).
+1. **A GitLab MR (URL or number)** the user gave. Pull it with `glab` — no manual copy needed:
+   ```bash
+   GITLAB_HOST=<host> glab mr view <id> -R <group/project>   # title, description, branches, the Mantis link
+   GITLAB_HOST=<host> glab mr diff <id> -R <group/project>   # the diff to review
+   ```
+   The `-R` and host come from the URL (`https://<host>/<group/project>/-/merge_requests/<id>`).
+2. An explicit diff, file, or branch the user named.
+3. Otherwise the current branch vs its base (`git diff <base>...HEAD`, base usually `develop` or `main`).
+4. Otherwise the working-tree diff (`git diff` / `git diff --cached`).
 
 Read the changed lines **and** enough surrounding code to judge them (the function, its callers, the form/route/service it touches). Never review a hunk in isolation when the bug could live in the context.
+
+## Load the ticket
+
+Correctness is judged against intent, so get the ticket. Extract the Mantis id from the MR description or the branch name (`fix/<id>-slug`), then:
+
+```bash
+scripts/mantis-issue.sh <id>    # prints summary, description, steps-to-reproduce, notes
+```
+
+It needs `MANTIS_URL` + `MANTIS_TOKEN` in the env. If they're unset or it exits non-zero (exit 2 = no creds, 3 = API error), **ask the user to paste the ticket** rather than reviewing intent blind.
 
 ## Review dimensions
 
