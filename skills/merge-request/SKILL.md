@@ -12,6 +12,7 @@ Turn a finished change into a clean, reviewable GitLab MR. Outward-facing: creat
 1. **Branch** — Work on a dedicated branch, never the base. Convention: `fix/<ticket>-<slug>` (or `feat/<ticket>-<slug>`). If currently on the base branch (`develop`/`main`), create the branch first.
 2. **Base branch** — Default target is `develop` (fall back to the repo's default branch). Confirm from existing branches/MRs if unsure.
 3. **Clean staging** — Stage **only** the files belonging to this change. Inspect `git status` and explicitly exclude unrelated working-tree edits (leave them unstaged — never `git add -A` blindly).
+4. **Reuse the review** — If `/clara:review` just ran, lift its verdict, **Vérification ✅** checks, and **Hors-scope** notes straight into the MR description instead of re-deriving them.
 
 ## Commit
 
@@ -33,20 +34,27 @@ git diff --cached --name-only   # must contain only the intended files
 
 ```bash
 git push -u origin <branch>
-GITLAB_HOST=<host> glab auth status      # confirm auth + host
+GITLAB_HOST=<host> glab auth status                       # confirm auth + host
+GITLAB_HOST=<host> glab mr list --source-branch <branch>  # bail if one already exists — update it, don't duplicate
+
+DESC=$(cat <<'EOF'
+<the MR description template below, filled in>
+EOF
+)
+
 GITLAB_HOST=<host> glab mr create \
   --source-branch <branch> \
   --target-branch <base> \
-  --title "Draft: <commit summary>" \
+  --title "<commit summary>" \
   --description "$DESC" \
-  --yes
+  --draft --yes
 ```
 
-Set `GITLAB_HOST` when the remote is self-hosted (e.g. `gitlab.gingerminds.fr`). Use `--yes` to avoid the interactive prompt.
+Set `GITLAB_HOST` when the remote is self-hosted (e.g. `gitlab.gingerminds.fr`). Build `$DESC` with the heredoc above so the multi-line markdown survives the shell. `--draft` is the canonical Draft flag (don't fake it with a `Draft:` title prefix); `--yes` skips the interactive prompt. If `glab mr list` shows an open MR for the branch, update it instead of creating a second one.
 
 ## MR description template
 
-Reference the tracker (Mantis/Jira/issue) with a real link. Structure:
+This fills `$DESC` above. Reference the tracker (Mantis/Jira/issue) with a real link. Structure:
 
 ```markdown
 ## Contexte
