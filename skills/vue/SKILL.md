@@ -81,7 +81,7 @@ Assume familiarity with:
 - Actions are the sole point of mutation; never mutate state outside an action.
 - Use `storeToRefs` to destructure reactive properties without losing reactivity.
 - Use `$patch` for bulk updates; prefer named actions for business operations.
-- For SSR: initialise stores server-side and pass state via `useNuxtApp().payload`; avoid accessing stores outside `setup()` on the server.
+- For SSR: with `@pinia/nuxt`, store state is serialized and rehydrated automatically — do not pass it manually via `useNuxtApp().payload`; avoid accessing stores outside `setup()` on the server.
 
 ## SSR / SSG and Nuxt Specifics
 
@@ -120,7 +120,7 @@ Assume familiarity with:
 - Use `defineProps<{...}>()` and `defineEmits<{...}>()` — never the runtime alternatives when TypeScript is available.
 - Prefer `Ref<T>` over `ref(value as T)` casts.
 - Type Pinia stores: derive types from the setup function return type rather than duplicating.
-- Use Nuxt's generated type utilities (`NuxtPage`, `NuxtLayout`, `RouterOutput`, etc.) when available.
+- Use Nuxt's auto-imported components (`<NuxtPage>`, `<NuxtLayout>`) and generated types (`NuxtError`, types from `#app`/`.nuxt/types`) when available; `RouterOutput` is a tRPC helper, not a Nuxt type.
 
 ## Testing
 
@@ -136,7 +136,7 @@ Assume familiarity with:
 
 - Follow the [Vue Style Guide](https://vuejs.org/style-guide/) priority A and B rules.
 - Use `<script setup lang="ts">` as the default SFC format.
-- Order SFC blocks: `<script setup>`, then `<template>`, then `<style scoped>`.
+- Order SFC blocks: `<script setup>`, then `<template>`, then `<style scoped>` (team convention, not a Vue Style Guide requirement).
 - Keep `<template>` readable: extract complex expressions into computed properties.
 - Use `scoped` styles by default; use `:deep()` sparingly and document why.
 - Avoid inline styles; use CSS variables or utility classes.
@@ -151,5 +151,5 @@ Assume familiarity with:
 4. **Then** provide implementation.
 5. **Mention** potential edge cases — especially SSR/hydration pitfalls and reactivity traps.
 6. **Mention** performance considerations (bundle, render, cache).
-7. **Mention** tests to add or update, and how to run them (`vitest`, `nuxi test`).
+7. **Mention** tests to add or update, and how to run them (`vitest` or `vitest --project nuxt`).
 8. **Review before wrapping up** — once the change is complete, run **`/clara:review`** on it to get a severity-ranked verdict before it goes anywhere near a merge request. Don't consider the work done until that review has run.
